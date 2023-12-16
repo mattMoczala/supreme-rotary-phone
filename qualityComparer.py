@@ -2,51 +2,79 @@ import os
 import cv2
 from statistics import mean
 
-scores = []
-
-def add_text_before_extension(filename, text):
+def addTextBeforeExtension(filename: str, text: str):
     # Split the filename and extension
     name, extension = filename.rsplit('.', 1)
 
     # Concatenate the name, text, and extension
-    new_filename = f"{name}{text}.{extension}"
+    newFilename = f"{name}{text}.{extension}"
 
-    return new_filename
+    return newFilename
 
-for file in [file for file in os.listdir("./SOCOFing/Real")][:1000]:
-    print(file)
-    print(add_text_before_extension(file, "_Obl"))
-    
-    fingerprint_image = cv2.imread("./SOCOFing/Real/" + file)
-    
-    path_to_altered_image = "./SOCOFing/Altered/Altered-Hard/"+ add_text_before_extension(file, "_Obl")
+def printScoresForAlteration(alterationLevel: str, alterationType: str, printLogs: bool):
+    scores = []
+    scoresMale = []
+    scoresFemale = []
 
-    if os.path.exists(path_to_altered_image):
-        altered_fingerprint_image  = cv2.imread(path_to_altered_image)
+    # Iterate through the first 1000 images in the Real dataset [:1000]
+    for file in [file for file in os.listdir("./SOCOFing/Real")]:    
+        fingerprintImage = cv2.imread("./SOCOFing/Real/" + file)
+        
+        pathToAlteredImage = "./SOCOFing/Altered/"+alterationLevel+"/"+ addTextBeforeExtension(file, "_"+alterationType)
 
-        sift = cv2.SIFT_create()
+        if os.path.exists(pathToAlteredImage):
+            alteredFingerprintImage  = cv2.imread(pathToAlteredImage)
 
-        keypoints_1, descriptors_1 = sift.detectAndCompute(altered_fingerprint_image, None)
-        keypoints_2, descriptors_2 = sift.detectAndCompute(fingerprint_image, None)
+            sift = cv2.SIFT_create()
 
-        matches = cv2.FlannBasedMatcher({'algorithm': 1, 'trees': 10}, {}).knnMatch(descriptors_1, descriptors_2, k=2)
+            keypoints1, descriptors1 = sift.detectAndCompute(alteredFingerprintImage, None)
+            keypoints2, descriptors2 = sift.detectAndCompute(fingerprintImage, None)
 
-        match_points = []
+            matches = cv2.FlannBasedMatcher({'algorithm': 1, 'trees': 10}, {}).knnMatch(descriptors1, descriptors2, k=2)
 
-        for p, q in matches:
-            if p.distance < 0.1 * q.distance: 
-                match_points.append(p)
+            matchPoints = []
 
-        keypoints = 0
-        if len(keypoints_1) < len(keypoints_2):
-            keypoints = len(keypoints_1)
+            for p, q in matches:
+                if p.distance < 0.1 * q.distance: 
+                    matchPoints.append(p)
+
+            keypoints = 0
+            if len(keypoints1) < len(keypoints2):
+                keypoints = len(keypoints1)
+            else:
+                keypoints = len(keypoints2)
+
+            score = len(matchPoints) / keypoints * 100
+            scores.append(score)
+            if 'M' in file and ('F' not in file or file.find('M') < file.find('F')):
+                scoresMale.append(score)
+            elif 'F' in file and ('M' not in file or file.find('F') < file.find('M')):
+                scoresFemale.append(score)
+
+            if printLogs:
+                print("Testing file pair "+file+" completed with general score: "+str(score))
         else:
-            keypoints = len(keypoints_2)
+            if printLogs:
+                print("Real fingerprint:" +file+" does not have Obl type alteration.")
 
-        score = len(match_points) / keypoints * 100
-        print("Testing file pair "+file+" completed with score: "+str(score))
-        scores.append(score)
-    else:
-        print("Real fingerprint:" +file+" does not have Obl type alteration.")
+    print("General mean score of "+alterationLevel+" "+alterationType+": " + str(mean(scores)))
+    print("Female mean score of "+alterationLevel+" "+alterationType+": " + str(mean(scoresFemale)))
+    print("Male mean score of "+alterationLevel+" "+alterationType+": " + str(mean(scoresMale)))
+    print("\n\n")
 
-print("Mean score of Obl alteration: " + str(mean(scores)))
+def printAllAlterations():
+    printScoresForAlteration("Altered-Hard", "Obl", False)
+    printScoresForAlteration("Altered-Medium", "Obl", False)
+    printScoresForAlteration("Altered-Easy", "Obl", False)
+
+    printScoresForAlteration("Altered-Hard", "Cr", False)
+    printScoresForAlteration("Altered-Medium", "Cr", False)
+    printScoresForAlteration("Altered-Easy", "Cr", False)
+
+    printScoresForAlteration("Altered-Hard", "Zcut", False)
+    printScoresForAlteration("Altered-Medium", "Zcut", False)
+    printScoresForAlteration("Altered-Easy", "Zcut", False)
+
+
+print("\n")
+printAllAlterations()
